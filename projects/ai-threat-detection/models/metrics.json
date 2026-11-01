@@ -1,0 +1,34 @@
+[
+  {
+    "model": "Random Forest",
+    "accuracy": 0.9761,
+    "precision": 0.9827,
+    "recall": 0.9736,
+    "f1": 0.9782,
+    "roc_auc": 0.9969
+  },
+  {
+    "model": "XGBoost",
+    "accuracy": 0.9773,
+    "precision": 0.9846,
+    "recall": 0.974,
+    "f1": 0.9793,
+    "roc_auc": 0.9974
+  },
+  {
+    "model": "TabNet",
+    "accuracy": 0.9376,
+    "precision": 0.9361,
+    "recall": 0.9516,
+    "f1": 0.9438,
+    "roc_auc": 0.9849
+  },
+  {
+    "model": "Stacking Ensemble",
+    "accuracy": 0.9775,
+    "precision": 0.9831,
+    "recall": 0.976,
+    "f1": 0.9795,
+    "roc_auc": 0.9975
+  }
+]

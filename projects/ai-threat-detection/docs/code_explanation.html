@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI Threat Detection System - Full Explanation</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
+    h1, h2, h3 { color: #2F4F4F; }
+    code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 4px; }
+    pre { background-color: #f8f8f8; padding: 10px; border-left: 3px solid #ccc; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    table, th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background-color: #f2f2f2; }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>
+
+<h1>📘 AI Threat Detection System – Full Code & Conceptual Explanation</h1>
+<p>This document provides a detailed explanation of each step in building an AI model to detect network threats using the UNSW-NB15 dataset.</p>
+
+<h2>🔍 Step 1: Load and Clean Data</h2>
+<pre><code>df = pd.read_csv("UNSW-NB15-processed.csv")
+df.drop(columns=['id', 'attack_cat', 'attack_ttp'], inplace=True)
+df.drop_duplicates(inplace=True)</code></pre>
+<p><strong>Explanation:</strong> The dataset is cleaned by removing identifiers and duplicated rows. The focus is on simplifying the input for the model by dropping columns not needed for classification.</p>
+
+<h2>✂️ Step 2: Split Features and Target</h2>
+<pre><code>X = df.drop('label', axis=1)
+y = df['label']</code></pre>
+<p><strong>Explanation:</strong> <code>X</code> holds the features; <code>y</code> holds the target — whether the connection is normal (0) or an attack (1).</p>
+
+<h2>🔀 Step 3: Train-Test Split</h2>
+<pre><code>X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2)</code></pre>
+<p><strong>Explanation:</strong> Data is split to evaluate model performance on unseen data. <code>stratify=y</code> ensures balanced class distribution.</p>
+
+<h2>🌲 Step 4: Train Random Forest</h2>
+<pre><code>rf = RandomForestClassifier(n_estimators=100)
+rf.fit(X_train, y_train)</code></pre>
+<p><strong>Explanation:</strong> A Random Forest classifier is trained to predict threats. It combines multiple decision trees to reduce overfitting and improve accuracy.</p>
+
+<h2>📈 Step 5: Evaluate the Model</h2>
+<pre><code>from sklearn.metrics import classification_report
+y_pred = rf.predict(X_test)
+print(classification_report(y_test, y_pred))</code></pre>
+<p><strong>Explanation:</strong> Outputs precision, recall, and F1-score to assess how well the model detects threats and avoids false positives.</p>
+<p><strong>Sample Output:</strong></p>
+<pre>
+              precision    recall  f1-score   support
+           0       0.97      0.96      0.96     10000
+           1       0.95      0.96      0.95      8000
+    accuracy                           0.96     18000
+</pre>
+<p><strong>Interpretation:</strong> High precision and recall show the model effectively identifies threats with minimal false alarms.</p>
+
+<h2>🧠 Step 6: SHAP Explanation</h2>
+<pre><code>explainer = shap.TreeExplainer(rf)
+shap.summary_plot(explainer.shap_values(X_test)[1], X_test)</code></pre>
+<p><strong>Explanation:</strong> SHAP values reveal which features most influence the model's threat prediction decisions. This helps explain decisions and build trust.</p>
+
+<h2>🤖 Step 7: LSTM Neural Network</h2>
+<pre><code>model = Sequential()
+model.add(LSTM(64, input_shape=(X.shape[1], 1)))
+model.add(Dense(1, activation='sigmoid'))</code></pre>
+<p><strong>Explanation:</strong> LSTM learns from sequential data (e.g., time-series network traffic). The final Dense layer makes binary predictions using a sigmoid activation.</p>
+
+<h2>🌐 Step 8: Flask Web API</h2>
+<pre><code>@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json(force=True)
+    ...
+</code></pre>
+<p><strong>Explanation:</strong> This route lets external systems send data to the model and get real-time predictions over HTTP using JSON format.</p>
+
+<h2>🐳 Step 9: Docker Deployment</h2>
+<pre><code>FROM python:3.10-slim
+WORKDIR /app
+COPY . /app
+RUN pip install -r requirements.txt
+CMD ["python", "threat_model_web_api.py"]</code></pre>
+<p><strong>Explanation:</strong> Docker allows packaging the app with its dependencies, ensuring consistent execution across environments.</p>
+
+<h2>🔁 Step 10: Live Simulation</h2>
+<p><code>live_threat_log_client.py</code> sends data from log files to the API in intervals to mimic a real-time monitoring environment, similar to a SOC tool feeding alerts to the AI model.</p>
+
+<h2>✅ Summary</h2>
+<ul>
+  <li><strong>Models:</strong> Random Forest and LSTM used for detection</li>
+  <li><strong>Explanation:</strong> SHAP provides transparency into how decisions are made</li>
+  <li><strong>Deployment:</strong> Flask API wrapped in Docker for flexible cloud/on-prem use</li>
+  <li><strong>Real-Time:</strong> Log streaming enables immediate threat feedback</li>
+</ul>
+
+</body>
+</html>
+

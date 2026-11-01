@@ -1,0 +1,193 @@
+<!--
+  Mini SOC Detection Lab - custom Wazuh rules
+  Deploy to /var/ossec/etc/rules/local_rules.xml on the Wazuh manager, then:
+      sudo /var/ossec/bin/wazuh-logtest     # test
+      sudo systemctl restart wazuh-manager  # apply
+  Rules 100001-100006 parse the SMT Employee Portal application log, which writes lines such as:
+      FAILED | user=<name> | ip=<addr>
+      SUCCESS | user=<name> | ip=<addr>
+      SQLI_ATTEMPT | ...
+-->
+<group name="local,soc_project,">
+
+  <!-- ============ Reconnaissance ============ -->
+
+  <!-- Nmap NSE scan against the Apache web server (T1595) -->
+  <rule id="100500" level="12">
+    <if_sid>31101</if_sid>
+    <regex type="pcre2">(?i)Nmap Scripting Engine</regex>
+    <description>Nmap Scripting Engine reconnaissance detected from $(srcip) targeting $(url).</description>
+    <mitre>
+      <id>T1595</id>
+    </mitre>
+    <group>reconnaissance,web_recon,nmap,attack,</group>
+  </rule>
+
+  <!-- Gobuster directory enumeration (T1595.002) -->
+  <rule id="100000" level="12">
+    <if_sid>31151</if_sid>
+    <regex type="pcre2">(?i)gobuster/3\.</regex>
+    <description>Gobuster directory enumeration detected from $(srcip).</description>
+    <mitre>
+      <id>T1595.002</id>
+    </mitre>
+    <group>reconnaissance,web_scan,gobuster,attack,</group>
+  </rule>
+
+  <!-- ============ Initial Access: web login brute force (Hydra) ============ -->
+
+  <rule id="100001" level="5">
+    <if_sid>0</if_sid>
+    <regex type="pcre2">^FAILED \| user=.* \| ip=.*</regex>
+    <description>SMT Portal Failed Login Attempt</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication,web_attack,bruteforce,attack,</group>
+  </rule>
+
+  <!-- 10 failures from the same source within 60 seconds -->
+  <rule id="100002" level="10" frequency="10" timeframe="60">
+    <if_matched_sid>100001</if_matched_sid>
+    <same_srcip />
+    <description>SMT Portal Brute Force Attack Detected</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication,web_attack,bruteforce,attack,</group>
+  </rule>
+
+  <rule id="100003" level="3">
+    <if_sid>0</if_sid>
+    <regex type="pcre2">^SUCCESS \| user=.* \| ip=.*</regex>
+    <description>SMT Portal Successful Login</description>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication,web_attack,login_success,</group>
+  </rule>
+
+  <!-- Correlation: successful login from a source that just triggered the brute-force rule -->
+  <rule id="100004" level="14" frequency="2" timeframe="300">
+    <if_matched_sid>100002</if_matched_sid>
+    <if_sid>100003</if_sid>
+    <same_srcip />
+    <description>SMT Portal Successful Brute Force Authentication</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication,bruteforce,credential_access,</group>
+  </rule>
+
+  <!-- ============ Initial Access: SQL injection (T1190) ============ -->
+
+  <rule id="100005" level="12">
+    <if_sid>0</if_sid>
+    <regex type="pcre2">^SQLI_ATTEMPT</regex>
+    <description>SMT Portal SQL Injection Attempt Detected</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web_attack,sql_injection,attack,</group>
+  </rule>
+
+  <rule id="100006" level="14">
+    <if_sid>0</if_sid>
+    <regex type="pcre2">^SUCCESS.*OR.*=</regex>
+    <description>SMT Portal SQL Injection Authentication Bypass Detected</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web_attack,sql_injection,authentication_bypass,attack,</group>
+  </rule>
+
+  <!-- ============ Execution ============ -->
+
+  <!-- Bash reverse shell via /dev/tcp redirection (T1059.004) -->
+  <rule id="100007" level="15">
+    <if_sid>0</if_sid>
+    <regex type="pcre2">/dev/tcp/</regex>
+    <description>Linux Reverse Shell Attempt Detected</description>
+    <mitre>
+      <id>T1059.004</id>
+    </mitre>
+    <group>linux,execution,reverse_shell,attack,</group>
+  </rule>
+
+  <!-- ============ Privilege Escalation ============ -->
+
+  <!-- Extends built-in sudo rule 5402; fires only on root shell via "sudo su -" (T1548.003) -->
+  <rule id="100008" level="13">
+    <if_sid>5402</if_sid>
+    <field name="command" type="pcre2">^/usr/bin/su\s*-?\s*$</field>
+    <description>Privilege Escalation to Root Shell via sudo su - executed by $(srcuser).</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+    <group>privilege_escalation,linux,attack,</group>
+  </rule>
+
+  <!-- ============ Credential Access ============ -->
+
+  <!-- Extends Auditd file-access rule 80700; requires an auditd watch tagged credential_access (T1005) -->
+  <rule id="100009" level="12">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">credential_access</field>
+    <description>Credential Discovery: Sensitive credentials file accessed using $(audit.command).</description>
+    <mitre>
+      <id>T1005</id>
+    </mitre>
+    <group>credential_access,discovery,linux,attack,</group>
+  </rule>
+
+  <!-- ============ Lateral Movement ============ -->
+
+  <!-- Extends built-in SSH success rule 5715 (T1021.004) -->
+  <rule id="100010" level="12">
+    <if_sid>5715</if_sid>
+    <description>Possible SSH Lateral Movement: Successful SSH login from $(srcip) using account $(dstuser).</description>
+    <mitre>
+      <id>T1021.004</id>
+    </mitre>
+    <group>lateral_movement,ssh,attack,</group>
+  </rule>
+
+  <!-- Windows RDP brute force: 3 failed logons (rule 60122) from the same IP within 60 s (T1110.001) -->
+  <rule id="100011" level="10" frequency="3" timeframe="60">
+    <if_matched_sid>60122</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <description>Windows Brute Force Attempt against $(win.eventdata.targetUserName) from $(win.eventdata.ipAddress)</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication,windows,bruteforce,attack,</group>
+  </rule>
+
+  <!-- Correlation: Event ID 4624 success from the IP that triggered 100011 -->
+  <rule id="100012" level="14">
+    <if_matched_sid>100011</if_matched_sid>
+    <if_group>windows_security</if_group>
+    <field name="win.system.eventID">^4624$</field>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <description>Windows Successful Brute Force Login: $(win.eventdata.targetUserName) from $(win.eventdata.ipAddress)</description>
+    <mitre>
+      <id>T1110.001</id>
+      <id>T1021.001</id>
+    </mitre>
+    <group>authentication,windows,bruteforce,lateral_movement,attack,</group>
+  </rule>
+
+  <!-- ============ Collection ============ -->
+
+  <!-- Sysmon Event ID 1 (rule 61603): process opened the confidential employee directory (T1005) -->
+  <rule id="100013" level="13">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)SMT_Employee_Directory</field>
+    <description>Sensitive Employee Directory File Accessed: $(win.eventdata.commandLine)</description>
+    <mitre>
+      <id>T1005</id>
+    </mitre>
+    <group>collection,windows,attack,</group>
+  </rule>
+
+</group>
